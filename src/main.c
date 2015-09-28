@@ -47,7 +47,7 @@ typedef struct rgb {
    int32_t r, g, b;
 } rgb_t;
 
-#define mix256(x,y,a) ((x * (0xff - a)) / 256 + (y * a) / 255)
+#define mix256(x,y,a) (((x) * (0xff - (a))) / 256 + ((y) * (a)) / 256)
 
 static inline rgb_t mixrgb(rgb_t x, rgb_t y, int a) {
    return (rgb_t){
