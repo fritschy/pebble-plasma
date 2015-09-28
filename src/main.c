@@ -48,6 +48,7 @@ typedef struct rgb {
 } rgb_t;
 
 #define mix256(x,y,a) (((x) * (0xff - (a))) / 256 + ((y) * (a)) / 256)
+#define mix4(x,y,a) (((x) * (3 - (a))) / 4 + ((y) * (a)) / 4)
 
 static inline rgb_t mixrgb(rgb_t x, rgb_t y, int a) {
    return (rgb_t){
@@ -116,15 +117,16 @@ static void plasma_compute(void) {
 }
 
 static int plasma_lookup(int x, int y) {
+#define BILINEAR
 #ifdef BILINEAR
    // can filter some, but it costs dearly
    int r00 = g_plasma.data[y/4  ][x/4  ];
+   int r01 = g_plasma.data[y/4  ][x/4+1];
+   int r10 = g_plasma.data[y/4+1][x/4  ];
    int r11 = g_plasma.data[y/4+1][x/4+1];
-   int r10 = g_plasma.data[y/4+1][x/4+0];
-   int r01 = g_plasma.data[y/4+0][x/4+1];
-   int s0 = mix256(r00, r10, (y&3) << 6);
-   int s1 = mix256(r01, r11, (y&3) << 6);
-   return mix256(s0, s1, (x&3) << 6);
+   int s0 = mix4(r00, r10, y&3);
+   int s1 = mix4(r01, r11, y&3);
+   return mix4(s0, s1, x&3);
 #else
    return g_plasma.data[y/4  ][x/4  ];
 #endif
