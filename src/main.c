@@ -103,7 +103,8 @@ static void plasma_compute(void) {
          s += (sin_lookup(ly + lta) + 0xffff) >> 8;
          s += (sin_lookup((lx+ly+lta) / 2) + 0xffff) >> 8;
          s += (sin_lookup((lx + lta) / 2) + 0xffff) >> 8;
-         s >>= 3;
+         s += (sin_lookup((lx*2 - lta) / 2) + 0xffff) >> 8;
+         s = s * 13 / 128; // bring it to 0..0xff
          if (s < 128)
             s = mix256(0, 0xff, (s << 1));
          else
