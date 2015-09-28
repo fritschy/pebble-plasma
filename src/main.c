@@ -61,11 +61,6 @@ static inline rgb_t to_rgb(uint32_t o) {
    return (rgb_t) { ((o>>4)&3)<<6, ((o>>2)&3)<<6, (o&3)<<6 };
 }
 
-static inline uint32_t from_rgb(rgb_t oc) {
-   return (uint32_t)((((uint32_t)oc.r >> 6) << 4) | (((uint32_t)oc.g >> 6) << 2) |
-                     (((uint32_t)oc.b >> 6) << 0) | 0xc0);
-}
-
 static void xmemset(uint32_t *p, uint32_t v, size_t len) {
    for (size_t i = 0; i < len; i++)
       p[i] = 0;
