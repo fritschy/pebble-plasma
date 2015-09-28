@@ -116,11 +116,18 @@ static void plasma_compute(void) {
 }
 
 static int plasma_lookup(int x, int y) {
+#ifdef BILINEAR
    // can filter some, but it costs dearly
-   return   g_plasma.data[y/4  ][x/4  ]; /* * 3 / 8
-          + g_plasma.data[y/4+1][x/4+1] * 1 / 8
-          + g_plasma.data[y/4+1][x/4+0] * 2 / 8
-          + g_plasma.data[y/4+0][x/4+1] * 2 / 8;*/
+   int r00 = g_plasma.data[y/4  ][x/4  ];
+   int r11 = g_plasma.data[y/4+1][x/4+1];
+   int r10 = g_plasma.data[y/4+1][x/4+0];
+   int r01 = g_plasma.data[y/4+0][x/4+1];
+   int s0 = mix256(r00, r10, (y&3) << 6);
+   int s1 = mix256(r01, r11, (y&3) << 6);
+   return mix256(s0, s1, (x&3) << 6);
+#else
+   return g_plasma.data[y/4  ][x/4  ];
+#endif
 }
 
 static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_) {
