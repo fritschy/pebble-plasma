@@ -1,6 +1,6 @@
 #include <pebble.h>
 
-#if 1
+#if 0
 #undef APP_LOG
 #define APP_LOG(...)
 #define START_TIME_MEASURE() {
@@ -47,6 +47,7 @@ typedef struct rgb {
    int32_t r, g, b;
 } rgb_t;
 
+#define mix(x,y,a,n) (((x) * ((n-1) - (a))) / (n) + ((y) * (a)) / (n))
 #define mix256(x,y,a) (((x) * (0xff - (a))) / 256 + ((y) * (a)) / 256)
 #define mix4(x,y,a) (((x) * (3 - (a))) / 4 + ((y) * (a)) / 4)
 
@@ -79,8 +80,9 @@ static int sqrti(int f)
    return v;
 }
 
-#define PLAW (FBW/4+1)
-#define PLAH (FBH/4+1)
+#define PLAS 4
+#define PLAW (FBW/PLAS+1)
+#define PLAH (FBH/PLAS+1)
 struct plasma {
    int time;
    uint8_t data[PLAH][PLAW];
@@ -92,12 +94,12 @@ struct plasma g_plasma;
 static void plasma_compute(void) {
    int lta = g_plasma.time * 2048;
    for (int y = 0; y < PLAH; y++) {
-      int ly = (y*4 - FBW2) * 1024;
-      int iy = (y*4 - FBW);
+      int ly = (y*PLAS - FBW2) * 1024;
+      int iy = (y*PLAS - FBW);
       for (int x = 0; x < PLAW; x++) {
          uint32_t s = 0;
-         int lx = (x*4 - FBW2) * 1024;
-         int ix = (x*4 - FBW);
+         int lx = (x*PLAS - FBW2) * 1024;
+         int ix = (x*PLAS - FBW);
          int cx = sin_lookup(lta / 4) >> 8;
          int cy = cos_lookup(lta / 2) >> 8;
          s += (sin_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8) + 0xffff) >> 8;
@@ -105,36 +107,38 @@ static void plasma_compute(void) {
          s += (sin_lookup((lx+ly+lta) / 2) + 0xffff) >> 8;
          s += (sin_lookup((lx + lta) / 2) + 0xffff) >> 8;
          s += (sin_lookup((lx*2 - lta) / 2) + 0xffff) >> 8;
-         s = s * 13 / 128; // bring it to 0..0xff
-         if (s < 128)
+         //s = s * 13 / 128; // bring it to 0..0xff
+         g_plasma.data[y][x] = (sin_lookup(s << 5) + 0xffff) >> 9;
+         /*if (s < 128)
             s = mix256(0, 0xff, (s << 1));
          else
             s = mix256(0xff, 0, ((s - 128) << 1));
-         g_plasma.data[y][x] = s;
+         g_plasma.data[y][x] = s;*/
       }
    }
    g_plasma.time++;
 }
 
-static int plasma_lookup(int x, int y) {
+static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
 #define BILINEAR
 #ifdef BILINEAR
    // can filter some, but it costs dearly
-   int r00 = g_plasma.data[y/4  ][x/4  ];
-   int r01 = g_plasma.data[y/4  ][x/4+1];
-   int r10 = g_plasma.data[y/4+1][x/4  ];
-   int r11 = g_plasma.data[y/4+1][x/4+1];
-   int s0 = mix4(r00, r10, y&3);
-   int s1 = mix4(r01, r11, y&3);
-   return mix4(s0, s1, x&3);
+   int r00 = g_plasma.data[y/PLAS  ][x/PLAS  ];
+   int r01 = g_plasma.data[y/PLAS  ][x/PLAS+1];
+   int r10 = g_plasma.data[y/PLAS+1][x/PLAS  ];
+   int r11 = g_plasma.data[y/PLAS+1][x/PLAS+1];
+   int s0 = mix(r00, r10, y&(PLAS-1), PLAS);
+   int s1 = mix(r01, r11, y&(PLAS-1), PLAS);
+   return mix(s0, s1, x&(PLAS-1), PLAS);
 #else
-   return g_plasma.data[y/4  ][x/4  ];
+   return g_plasma.data[y/PLAS  ][x/PLAS  ];
 #endif
 }
 
-static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_) {
+static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_, uint8_t c2_) {
    rgb_t c0 = to_rgb(c0_);
    rgb_t c1 = to_rgb(c1_);
+   rgb_t c2 = to_rgb(c2_);
 
    plasma_compute();
 
@@ -154,7 +158,8 @@ static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_) {
                    *error1 = &error[1][-1].r,
                    *error0end = error0+FBW*3,
                    x = 0; error0 != error0end; x++) {
-         rgb_t const c = mixrgb(c0, c1, plasma_lookup(x, y));
+         int p = plasma_lookup(x, y);
+         rgb_t const c = mixrgb(c0, mixrgb(c1, c2, p * 2 - 0xff), p);
          int8_t out = 0xc; // alpha, will be shifted up towards MSB 2 times
          int32_t const *ni = &next.r;
          int32_t const *ci = &c.r;
@@ -217,7 +222,7 @@ static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_) {
 
 static void draw(void) {
    START_TIME_MEASURE();
-   fbPlasma(0xc0, 0xff);
+   fbPlasma(0xc0, 0xf0, 0xfc);
    END_TIME_MEASURE("drawing");
 }
 
