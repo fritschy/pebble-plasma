@@ -94,12 +94,12 @@ struct plasma g_plasma;
 static void plasma_compute(void) {
    int lta = g_plasma.time * 2048;
    for (int y = 0; y < PLAH; y++) {
-      int ly = (y*PLAS - FBW2) * 1024;
-      int iy = (y*PLAS - FBW);
+      int ly = (y*PLAS/2 - FBW2) * 1024;
+      int iy = (y*PLAS/2 - FBW);
       for (int x = 0; x < PLAW; x++) {
          uint32_t s = 0;
-         int lx = (x*PLAS - FBW2) * 1024;
-         int ix = (x*PLAS - FBW);
+         int lx = (x*PLAS/2 - FBW2) * 1024;
+         int ix = (x*PLAS/2 - FBW);
          int cx = sin_lookup(lta / 4) >> 8;
          int cy = cos_lookup(lta / 2) >> 8;
          s += (sin_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8) + 0xffff) >> 8;
