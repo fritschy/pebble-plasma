@@ -1,6 +1,6 @@
 #include <pebble.h>
 
-#if 0
+#if 1
 #undef APP_LOG
 #define APP_LOG(...)
 #define START_TIME_MEASURE() {
@@ -48,20 +48,6 @@ typedef struct rgb {
 } rgb_t;
 
 #define mix(x,y,a,n) (((x) * ((n-1) - (a))) / (n) + ((y) * (a)) / (n))
-#define mix256(x,y,a) (((x) * (0xff - (a))) / 256 + ((y) * (a)) / 256)
-#define mix4(x,y,a) (((x) * (3 - (a))) / 4 + ((y) * (a)) / 4)
-
-static inline rgb_t mixrgb(rgb_t x, rgb_t y, int a) {
-   return (rgb_t){
-      mix256(x.r, y.r, a),
-      mix256(x.g, y.g, a),
-      mix256(x.b, y.b, a),
-   };
-}
-
-static inline rgb_t to_rgb(uint32_t o) {
-   return (rgb_t) { ((o>>4)&3)<<6, ((o>>2)&3)<<6, (o&3)<<6 };
-}
 
 static void xmemset(uint32_t *p, uint32_t v, size_t len) {
    for (size_t i = 0; i < len; i++)
@@ -95,11 +81,9 @@ static void plasma_compute(void) {
    int lta = g_plasma.time * 2048;
    for (int y = 0; y < PLAH; y++) {
       int ly = (y*PLAS/2 - FBW2) * 1024;
-      int iy = (y*PLAS/2 - FBW);
       for (int x = 0; x < PLAW; x++) {
          uint32_t s = 0;
          int lx = (x*PLAS/2 - FBW2) * 1024;
-         int ix = (x*PLAS/2 - FBW);
          int cx = sin_lookup(lta / 4) >> 8;
          int cy = cos_lookup(lta / 2) >> 8;
          s += (sin_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8) + 0xffff) >> 8;
@@ -137,7 +121,7 @@ rgb_t colors_lookup(int v) {
    return g_colors.data[v & (COLS - 1)];
 }
 
-static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
+static int plasma_lookup(int x, int y) {
 #define BILINEAR
 #ifdef BILINEAR
    // can filter some, but it costs dearly
@@ -153,7 +137,7 @@ static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
 #endif
 }
 
-static void __attribute__((optimize(2))) fbPlasma() {
+static void fbPlasma() {
    plasma_compute();
 
    // width+2 items to eliminate extra branche sin the inner loop and...
