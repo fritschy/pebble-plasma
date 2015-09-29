@@ -156,6 +156,7 @@ static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
 static void __attribute__((optimize(2))) fbPlasma() {
    plasma_compute();
 
+#ifdef ERROR_DIFFUSION
    // width+2 items to eliminate extra branche sin the inner loop and...
    static rgb_t errors[2*(FBW+2)];
    // init error[0] to zero each time ...
@@ -232,6 +233,59 @@ static void __attribute__((optimize(2))) fbPlasma() {
       error[0] = error[1];
       error[1] = es;
    }
+#else
+   int32_t coeff[8][8] =
+   {
+      {  0, 48, 12, 60,  3, 51, 15, 63 },
+      { 32, 16, 44, 28, 35, 19, 47, 31 },
+      {  8, 56,  4, 52, 11, 59,  7, 56 },
+      { 40, 24, 36, 20, 43, 27, 39, 23 },
+      {  2, 50, 14, 62,  1, 49, 13, 61 },
+      { 34, 18, 46, 30, 33, 17, 45, 29 },
+      { 10, 58,  6, 54, 9, 57,  5, 53 },
+      { 42, 26, 38, 22, 41, 25, 37, 21 }
+   };
+
+#define USAT(v,b) __asm__("usat %0, %2, %1" : "=r"(v) : "r"(v), "i"(b) : )
+#define PALETTE(x) (((x) + (PM + 1) / 2) & ~PM)
+
+   for (int y = 0; y < FBH; y++) {
+      uint8_t *lfb = fb+y*FBW;
+      for (int x = 0; x != FBW; x++) {
+         int p = plasma_lookup(x, y);
+         rgb_t c = colors_lookup(p);
+         int8_t out = 0xc; // alpha, will be shifted up towards MSB 2 times
+         int32_t const *ci = &c.r;
+
+#if NOPLEASE
+         rgb_t oldp = addrgb(c, mulshrrgb(c, coeff[y&7][x&7], 6));
+         rgb_t newp = clamprgb(palette(oldp));
+         fb[y*FBW+x] = from_rgb(newp);
+#endif
+
+         int32_t o = (*ci + *ci * coeff[y&7][x&7] / 128) / 2;
+         int32_t n = PALETTE(o);
+         USAT(n,2);
+         out |= n;
+         ci++;
+
+         o = (*ci + *ci * coeff[y&7][x&7] / 128) / 2;
+         n = PALETTE(o);
+         USAT(n,2);
+         out <<= 2;
+         out |= n;
+         ci++;
+
+         o = (*ci + *ci * coeff[y&7][x&7] / 128) / 2;
+         n = PALETTE(o);
+         USAT(n,2);
+         out <<= 2;
+         out |= n;
+
+         lfb[x] = out;
+      }
+   }
+#endif
 }
 
 static void draw(void) {
