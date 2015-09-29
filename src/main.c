@@ -156,7 +156,11 @@ static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
 static void __attribute__((optimize(2))) fbPlasma() {
    plasma_compute();
 
-#ifdef ERROR_DIFFUSION
+#define USAT(v,b,s) __asm__("usat %0, %2, %1, asr %3" : "=r"(v) : "r"(v), "i"(b), "i"(s) : )
+#define PALETTE(x) (((x) + (PM + 1) / 2) & ~PM)
+
+/* #define ERROR_DIFFUSION */
+#ifndef ERROR_DIFFUSION
    // width+2 items to eliminate extra branche sin the inner loop and...
    static rgb_t errors[2*(FBW+2)];
    // init error[0] to zero each time ...
@@ -180,16 +184,15 @@ static void __attribute__((optimize(2))) fbPlasma() {
          int32_t const *ci = &c.r;
          int32_t *no = &next.r;
 
-#define USAT(v,b,s) __asm__("usat %0, %2, %1, asr %3" : "=r"(v) : "r"(v), "i"(b), "i"(s) : )
-#define PALETTE(x) (((x) + (PM + 1) / 2) & ~PM)
-
          // grouped computations so that _maybe_ the compiler can carry out the
          // computations with less spills, as opposed to computing all the oX, nX,
          // qeX etc and writing them back at the end.
          int32_t o0 = *ci++ + *ni++ + *error0;
-         int32_t n0 = PALETTE(o0);
+         int32_t n0 = o0;
+         USAT(n0,3,6);
+         n0 <<= 6;
          int32_t qe0 = o0 - n0;
-         USAT(n0, 3, 6);
+         n0 >>= 6;
          out |= n0; /* "or in" current channel */
          qe0 /= 2;
          *no++ = qe0;
@@ -198,9 +201,11 @@ static void __attribute__((optimize(2))) fbPlasma() {
          *error0++ = 0;
 
          int32_t o1 = *ci++ + *ni++ + *error0;
-         int32_t n1 = PALETTE(o1);
+         int32_t n1 = o1;
+         USAT(n1,3,6);
+         n1 <<= 6;
          int32_t qe1 = o1 - n1;
-         USAT(n1, 3, 6);
+         n1 >>= 6;
          out <<= 2; /* shift current 2 places up towards alpha */
          out |= n1; /* "or in" current channel */
          qe1 /= 2;
@@ -210,9 +215,11 @@ static void __attribute__((optimize(2))) fbPlasma() {
          *error0++ = 0;
 
          int32_t o2 = *ci + *ni + *error0;
-         int32_t n2 = PALETTE(o2);
+         int32_t n2 = o2;
+         USAT(n2,3,6);
+         n2 <<= 6;
          int32_t qe2 = o2 - n2;
-         USAT(n2, 3, 6);
+         n2 >>= 6;
          out <<= 2; /* shift current 2 places up towards alpha */
          out |= n2; /* "or in" current channel */
          *lfb++ = out;
@@ -234,7 +241,7 @@ static void __attribute__((optimize(2))) fbPlasma() {
       error[1] = es;
    }
 #else
-   int32_t coeff[8][8] =
+   static const int32_t coeff[8][8] =
    {
       {  0, 48, 12, 60,  3, 51, 15, 63 },
       { 32, 16, 44, 28, 35, 19, 47, 31 },
@@ -242,12 +249,9 @@ static void __attribute__((optimize(2))) fbPlasma() {
       { 40, 24, 36, 20, 43, 27, 39, 23 },
       {  2, 50, 14, 62,  1, 49, 13, 61 },
       { 34, 18, 46, 30, 33, 17, 45, 29 },
-      { 10, 58,  6, 54, 9, 57,  5, 53 },
+      { 10, 58,  6, 54,  9, 57,  5, 53 },
       { 42, 26, 38, 22, 41, 25, 37, 21 }
    };
-
-#define USAT(v,b) __asm__("usat %0, %2, %1" : "=r"(v) : "r"(v), "i"(b) : )
-#define PALETTE(x) (((x) + (PM + 1) / 2) & ~PM)
 
    for (int y = 0; y < FBH; y++) {
       uint8_t *lfb = fb+y*FBW;
@@ -256,31 +260,23 @@ static void __attribute__((optimize(2))) fbPlasma() {
          rgb_t c = colors_lookup(p);
          int8_t out = 0xc; // alpha, will be shifted up towards MSB 2 times
          int32_t const *ci = &c.r;
+         int32_t co = coeff[y&7][x&7];
 
-#if NOPLEASE
-         rgb_t oldp = addrgb(c, mulshrrgb(c, coeff[y&7][x&7], 6));
-         rgb_t newp = clamprgb(palette(oldp));
-         fb[y*FBW+x] = from_rgb(newp);
-#endif
-
-         int32_t o = (*ci + *ci * coeff[y&7][x&7] / 128) / 2;
-         int32_t n = PALETTE(o);
-         USAT(n,2);
-         out |= n;
+         int32_t o = *ci + *ci * co;
+         USAT(o,3,12); // asr by 12: (6 for "*ci * co", 6 for pebbl fb color
+         out |= o;
          ci++;
 
-         o = (*ci + *ci * coeff[y&7][x&7] / 128) / 2;
-         n = PALETTE(o);
-         USAT(n,2);
+         o = *ci + *ci * co;
+         USAT(o,3,12);
          out <<= 2;
-         out |= n;
+         out |= o;
          ci++;
 
-         o = (*ci + *ci * coeff[y&7][x&7] / 128) / 2;
-         n = PALETTE(o);
-         USAT(n,2);
+         o = *ci + *ci * co;
+         USAT(o,3,12);
          out <<= 2;
-         out |= n;
+         out |= o;
 
          lfb[x] = out;
       }
