@@ -107,16 +107,34 @@ static void plasma_compute(void) {
          s += (sin_lookup((lx+ly+lta) / 2) + 0xffff) >> 8;
          s += (sin_lookup((lx + lta) / 2) + 0xffff) >> 8;
          s += (sin_lookup((lx*2 - lta) / 2) + 0xffff) >> 8;
-         //s = s * 13 / 128; // bring it to 0..0xff
-         g_plasma.data[y][x] = (sin_lookup(s << 5) + 0xffff) >> 9;
-         /*if (s < 128)
-            s = mix256(0, 0xff, (s << 1));
-         else
-            s = mix256(0xff, 0, ((s - 128) << 1));
-         g_plasma.data[y][x] = s;*/
+         int v = (sin_lookup(s << 5) + 0xffff) >> 9;
+         g_plasma.data[y][x] = v;
       }
    }
    g_plasma.time++;
+}
+
+#define COLS 256
+
+struct colors {
+   int init;
+   rgb_t data[COLS];
+};
+
+struct colors g_colors;
+
+void colors_init(void) {
+   for (int i = 0; i < COLS; i++) {
+      g_colors.data[i] = (rgb_t) {
+         (sin_lookup(i << 8) + 0xffff) >> 9,
+         (sin_lookup(i * 256 + 2 * 0x7fff / 3) + 0xffff) >> 9,
+         (sin_lookup(i * 256 + 4 * 0x7fff / 3) + 0xffff) >> 9 };
+      /* g_colors.data[i] = (rgb_t) { (sin_lookup(i << 8) + 0xffff) >> 9, (cos_lookup(i << 8) + 0xffff) >> 9, 0 }; */
+   }
+}
+
+rgb_t colors_lookup(int v) {
+   return g_colors.data[v & (COLS - 1)];
 }
 
 static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
@@ -129,17 +147,13 @@ static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
    int r11 = g_plasma.data[y/PLAS+1][x/PLAS+1];
    int s0 = mix(r00, r10, y&(PLAS-1), PLAS);
    int s1 = mix(r01, r11, y&(PLAS-1), PLAS);
-   return mix(s0, s1, x&(PLAS-1), PLAS);
+   return mix(s0, s1, x&(PLAS-1), PLAS) * 4 / 3;
 #else
    return g_plasma.data[y/PLAS  ][x/PLAS  ];
 #endif
 }
 
-static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_, uint8_t c2_) {
-   rgb_t c0 = to_rgb(c0_);
-   rgb_t c1 = to_rgb(c1_);
-   rgb_t c2 = to_rgb(c2_);
-
+static void __attribute__((optimize(2))) fbPlasma() {
    plasma_compute();
 
    // width+2 items to eliminate extra branche sin the inner loop and...
@@ -159,7 +173,7 @@ static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_, uint
                    *error0end = error0+FBW*3,
                    x = 0; error0 != error0end; x++) {
          int p = plasma_lookup(x, y);
-         rgb_t const c = mixrgb(c0, mixrgb(c1, c2, p * 2 - 0xff), p);
+         rgb_t c = colors_lookup(p);
          int8_t out = 0xc; // alpha, will be shifted up towards MSB 2 times
          int32_t const *ni = &next.r;
          int32_t const *ci = &c.r;
@@ -222,7 +236,7 @@ static void __attribute__((optimize(2))) fbPlasma(uint8_t c0_, uint8_t c1_, uint
 
 static void draw(void) {
    START_TIME_MEASURE();
-   fbPlasma(0xc0, 0xf0, 0xfc);
+   fbPlasma();
    END_TIME_MEASURE("drawing");
 }
 
@@ -262,6 +276,7 @@ static void window_unload(Window *w) {
 }
 
 static void init(struct App *a) {
+   colors_init();
    g = a;
    a->w = window_create();
    window_set_user_data(a->w, a);
