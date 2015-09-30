@@ -240,7 +240,7 @@ static void __attribute__((optimize(2))) fbPlasma() {
       error[1] = es;
    }
 #else
-   static const int32_t coeff[8][8] =
+   static const int8_t coeff[8][8] =
    {
       {  0, 48, 12, 60,  3, 51, 15, 63 },
       { 32, 16, 44, 28, 35, 19, 47, 31 },
