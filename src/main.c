@@ -125,11 +125,11 @@ struct colors g_colors;
 
 void colors_init(void) {
    for (int i = 0; i < COLS; i++) {
-      g_colors.data[i] = (rgb_t) {
-         (sin_lookup(i << 8) + 0xffff) >> 9,
-         (sin_lookup(i * 256 + 2 * 0x7fff / 3) + 0xffff) >> 9,
-         (sin_lookup(i * 256 + 4 * 0x7fff / 3) + 0xffff) >> 9 };
-      /* g_colors.data[i] = (rgb_t) { (sin_lookup(i << 8) + 0xffff) >> 9, (cos_lookup(i << 8) + 0xffff) >> 9, 0 }; */
+     // g_colors.data[i] = (rgb_t) {
+     //    (sin_lookup(i << 8) + 0xffff) >> 9,
+     //    (sin_lookup(i * 256 + 2 * 0x7fff / 3) + 0xffff) >> 9,
+     //    (sin_lookup(i * 256 + 4 * 0x7fff / 3) + 0xffff) >> 9 };
+      g_colors.data[i] = (rgb_t) { (sin_lookup(i << 8) + 0xffff) >> 9, (cos_lookup(i << 8) + 0xffff) >> 9, 0 };
    }
 }
 
