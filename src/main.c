@@ -138,7 +138,7 @@ rgb_t colors_lookup(int v) {
 }
 
 static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
-#define BILINEAR
+/* #define BILINEAR */
 #ifdef BILINEAR
    // can filter some, but it costs dearly
    int r00 = g_plasma.data[y/PLAS  ][x/PLAS  ];
@@ -160,7 +160,7 @@ static void __attribute__((optimize(2))) fbPlasma() {
 #define PALETTE(x) (((x) + (PM + 1) / 2) & ~PM)
 
 /* #define ERROR_DIFFUSION */
-#ifndef ERROR_DIFFUSION
+#ifdef ERROR_DIFFUSION
    // width+2 items to eliminate extra branche sin the inner loop and...
    static rgb_t errors[2*(FBW+2)];
    // init error[0] to zero each time ...
