@@ -188,11 +188,9 @@ static void __attribute__((optimize(2))) fbPlasma() {
          // computations with less spills, as opposed to computing all the oX, nX,
          // qeX etc and writing them back at the end.
          int32_t o0 = *ci++ + *ni++ + *error0;
-         int32_t n0 = o0;
-         USAT(n0,3,6);
-         n0 <<= 6;
+         int32_t n0 = PALETTE(o0);
          int32_t qe0 = o0 - n0;
-         n0 >>= 6;
+         USAT(n0, 3, 6);
          out |= n0; /* "or in" current channel */
          qe0 /= 2;
          *no++ = qe0;
@@ -201,11 +199,9 @@ static void __attribute__((optimize(2))) fbPlasma() {
          *error0++ = 0;
 
          int32_t o1 = *ci++ + *ni++ + *error0;
-         int32_t n1 = o1;
-         USAT(n1,3,6);
-         n1 <<= 6;
+         int32_t n1 = PALETTE(o1);
          int32_t qe1 = o1 - n1;
-         n1 >>= 6;
+         USAT(n1, 3, 6);
          out <<= 2; /* shift current 2 places up towards alpha */
          out |= n1; /* "or in" current channel */
          qe1 /= 2;
@@ -215,11 +211,9 @@ static void __attribute__((optimize(2))) fbPlasma() {
          *error0++ = 0;
 
          int32_t o2 = *ci + *ni + *error0;
-         int32_t n2 = o2;
-         USAT(n2,3,6);
-         n2 <<= 6;
+         int32_t n2 = PALETTE(o2);
          int32_t qe2 = o2 - n2;
-         n2 >>= 6;
+         USAT(n2, 3, 6);
          out <<= 2; /* shift current 2 places up towards alpha */
          out |= n2; /* "or in" current channel */
          *lfb++ = out;
