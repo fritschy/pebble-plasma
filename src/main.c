@@ -258,21 +258,22 @@ static void __attribute__((optimize(2))) fbPlasma() {
          int p = plasma_lookup(x, y);
          rgb_t c = colors_lookup(p);
          int8_t out = 0xc; // alpha, will be shifted up towards MSB 2 times
-         int32_t const *ci = &c.r;
          int32_t co = coeff[y&7][x&7];
 
-         int32_t o = *ci + *ci * co;
-         USAT(o,3,12); // asr by 12: (6 for "*ci * co", 6 for pebbl fb color
-         out |= o;
-         ci++;
+         // MLA Rd, Rn, Rm, Ra ; Rd = Ra + Rn * Rm
+#define MLA(rd,rn,rm) __asm__("mla %0, %1, %2, %2" : "=r"(rd) : "r"(rn), "r"(rm) : )
 
-         o = *ci + *ci * co;
+         int32_t o;
+         MLA(o,co,c.r);
+         USAT(o,3,12);
+         out |= o;
+
+         MLA(o,co,c.g);
          USAT(o,3,12);
          out <<= 2;
          out |= o;
-         ci++;
 
-         o = *ci + *ci * co;
+         MLA(o,co,c.b);
          USAT(o,3,12);
          out <<= 2;
          out |= o;
