@@ -287,6 +287,17 @@ static void __attribute__((optimize(2))) fbPlasma() {
 static void draw(void) {
    START_TIME_MEASURE();
    fbPlasma();
+#if 0
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+#endif
    END_TIME_MEASURE("drawing");
 }
 
