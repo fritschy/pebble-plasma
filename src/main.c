@@ -92,22 +92,27 @@ struct plasma g_plasma;
 
 // pre-compute plasma each frame
 static void plasma_compute(void) {
+   // http://www.bidouille.org/prog/plasma
    int lta = g_plasma.time * 2048;
    for (int y = 0; y < PLAH; y++) {
-      int ly = (y*PLAS/2 - FBW2) * 1024;
-      int iy = (y*PLAS/2 - FBW);
+      int ly = (y*PLAS*5/8 - FBW2) * 1024;
       for (int x = 0; x < PLAW; x++) {
          uint32_t s = 0;
-         int lx = (x*PLAS/2 - FBW2) * 1024;
-         int ix = (x*PLAS/2 - FBW);
-         int cx = sin_lookup(lta * 5 / 16) >> 8;
-         int cy = cos_lookup(lta * 3 / 8) >> 8;
-         s += (sin_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8) + 0xffff) >> 8;
-         s += (sin_lookup(ly + lta * 3 / 4) + 0xffff) >> 8;
-         s += (sin_lookup((lx * 19 / 16 + ly * 3 / 4 + lta) / 2) + 0xffff) >> 8;
-         s += (sin_lookup((lx * 3 / 4 + lta * 5 / 4) / 2) + 0xffff) >> 8;
-         s += (sin_lookup((lx*11/8 - lta * 13 / 16) / 2) + 0xffff) >> 8;
-         int v = (sin_lookup(s << 5) + 0x10000) >> 9;
+         int lx = (x*PLAS*5/8 - FBW2) * 1024;
+
+         // 85 / 256 ~= 1 / 3
+         int cx = sin_lookup(lta * 85 / 256) / 256;
+         int cy = cos_lookup(lta / 2) / 256;
+
+         s += cos_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8);
+         s += sin_lookup(ly/2 + lta * 3 / 8);
+         s += sin_lookup((lx * 21 / 16 + ly * 3 / 4 + lta) / 2);
+         s += sin_lookup((lx * 1 / 4 + lta * 5 / 4) / 2);
+         s += sin_lookup((lx*11/8 - lta * 13 / 16) / 2);
+
+         // the ">> 3" is a frequency reduction
+         int v = (sin_lookup(s >> 3) + 0xffff) >> 9;
+
          g_plasma.data[y][x] = v;
       }
    }
