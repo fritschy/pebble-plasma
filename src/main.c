@@ -100,13 +100,13 @@ static void plasma_compute(void) {
          uint32_t s = 0;
          int lx = (x*PLAS/2 - FBW2) * 1024;
          int ix = (x*PLAS/2 - FBW);
-         int cx = sin_lookup(lta * 3 / 16) >> 8;
+         int cx = sin_lookup(lta * 5 / 16) >> 8;
          int cy = cos_lookup(lta * 3 / 8) >> 8;
          s += (sin_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8) + 0xffff) >> 8;
          s += (sin_lookup(ly + lta * 3 / 4) + 0xffff) >> 8;
-         s += (sin_lookup((lx * 5 / 4 + ly * 3 / 4 + lta) / 2) + 0xffff) >> 8;
+         s += (sin_lookup((lx * 19 / 16 + ly * 3 / 4 + lta) / 2) + 0xffff) >> 8;
          s += (sin_lookup((lx * 3 / 4 + lta * 5 / 4) / 2) + 0xffff) >> 8;
-         s += (sin_lookup((lx*12/8 - lta * 12 / 16) / 2) + 0xffff) >> 8;
+         s += (sin_lookup((lx*11/8 - lta * 13 / 16) / 2) + 0xffff) >> 8;
          int v = (sin_lookup(s << 5) + 0x10000) >> 9;
          g_plasma.data[y][x] = v;
       }
