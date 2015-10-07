@@ -78,20 +78,27 @@ struct plasma g_plasma;
 
 // pre-compute plasma each frame
 static void plasma_compute(void) {
+   // http://www.bidouille.org/prog/plasma
    int lta = g_plasma.time * 2048;
    for (int y = 0; y < PLAH; y++) {
-      int ly = (y*PLAS/2 - FBW2) * 1024;
+      int ly = (y*PLAS*5/8 - FBW2) * 1024;
       for (int x = 0; x < PLAW; x++) {
          uint32_t s = 0;
-         int lx = (x*PLAS/2 - FBW2) * 1024;
-         int cx = sin_lookup(lta / 4) >> 8;
-         int cy = cos_lookup(lta / 2) >> 8;
-         s += (sin_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8) + 0xffff) >> 8;
-         s += (sin_lookup(ly + lta) + 0xffff) >> 8;
-         s += (sin_lookup((lx+ly+lta) / 2) + 0xffff) >> 8;
-         s += (sin_lookup((lx + lta) / 2) + 0xffff) >> 8;
-         s += (sin_lookup((lx*2 - lta) / 2) + 0xffff) >> 8;
-         int v = (sin_lookup(s << 5) + 0xffff) >> 9;
+         int lx = (x*PLAS*5/8 - FBW2) * 1024;
+
+         // 85 / 256 ~= 1 / 3
+         int cx = sin_lookup(lta * 85 / 256) / 256;
+         int cy = cos_lookup(lta / 2) / 256;
+
+         s += cos_lookup(sqrti(cx*cx + cy*cy) + lta * 3 / 8);
+         s += sin_lookup(ly/2 + lta * 3 / 8);
+         s += sin_lookup((lx * 21 / 16 + ly * 3 / 4 + lta) / 2);
+         s += sin_lookup((lx * 1 / 4 + lta * 5 / 4) / 2);
+         s += sin_lookup((lx*11/8 - lta * 13 / 16) / 2);
+
+         // the ">> 3" is a frequency reduction
+         int v = (sin_lookup(s >> 3) + 0xffff) >> 9;
+
          g_plasma.data[y][x] = v;
       }
    }
@@ -109,11 +116,11 @@ struct colors g_colors;
 
 void colors_init(void) {
    for (int i = 0; i < COLS; i++) {
-      g_colors.data[i] = (rgb_t) {
-         (sin_lookup(i << 8) + 0xffff) >> 9,
-         (sin_lookup(i * 256 + 2 * 0x7fff / 3) + 0xffff) >> 9,
-         (sin_lookup(i * 256 + 4 * 0x7fff / 3) + 0xffff) >> 9 };
-      /* g_colors.data[i] = (rgb_t) { (sin_lookup(i << 8) + 0xffff) >> 9, (cos_lookup(i << 8) + 0xffff) >> 9, 0 }; */
+     // g_colors.data[i] = (rgb_t) {
+     //    (sin_lookup(i << 8) + 0xffff) >> 9,
+     //    (sin_lookup(i * 256 + 2 * 0x7fff / 3) + 0xffff) >> 9,
+     //    (sin_lookup(i * 256 + 4 * 0x7fff / 3) + 0xffff) >> 9 };
+      g_colors.data[i] = (rgb_t) { (sin_lookup(i << 8) + 0xffff) >> 9, (cos_lookup(i << 8) + 0xffff) >> 9, 0 };
    }
 }
 
@@ -121,8 +128,8 @@ rgb_t colors_lookup(int v) {
    return g_colors.data[v & (COLS - 1)];
 }
 
-static int plasma_lookup(int x, int y) {
-#define BILINEAR
+static int __attribute__((optimize(3))) plasma_lookup(int x, int y) {
+/* #define BILINEAR */
 #ifdef BILINEAR
    // can filter some, but it costs dearly
    int r00 = g_plasma.data[y/PLAS  ][x/PLAS  ];
@@ -140,6 +147,11 @@ static int plasma_lookup(int x, int y) {
 static void fbPlasma() {
    plasma_compute();
 
+#define USAT(v,b,s) __asm__("usat %0, %2, %1, asr %3" : "=r"(v) : "r"(v), "i"(b), "i"(s) : )
+#define PALETTE(x) (((x) + (PM + 1) / 2) & ~PM)
+
+/* #define ERROR_DIFFUSION */
+#ifdef ERROR_DIFFUSION
    // width+2 items to eliminate extra branche sin the inner loop and...
    static rgb_t errors[2*(FBW+2)];
    // init error[0] to zero each time ...
@@ -162,9 +174,6 @@ static void fbPlasma() {
          int32_t const *ni = &next.r;
          int32_t const *ci = &c.r;
          int32_t *no = &next.r;
-
-#define USAT(v,b,s) __asm__("usat %0, %2, %1, asr %3" : "=r"(v) : "r"(v), "i"(b), "i"(s) : )
-#define PALETTE(x) (((x) + (PM + 1) / 2) & ~PM)
 
          // grouped computations so that _maybe_ the compiler can carry out the
          // computations with less spills, as opposed to computing all the oX, nX,
@@ -216,11 +225,65 @@ static void fbPlasma() {
       error[0] = error[1];
       error[1] = es;
    }
+#else
+   static const int8_t coeff[8][8] =
+   {
+      {  0, 48, 12, 60,  3, 51, 15, 63 },
+      { 32, 16, 44, 28, 35, 19, 47, 31 },
+      {  8, 56,  4, 52, 11, 59,  7, 56 },
+      { 40, 24, 36, 20, 43, 27, 39, 23 },
+      {  2, 50, 14, 62,  1, 49, 13, 61 },
+      { 34, 18, 46, 30, 33, 17, 45, 29 },
+      { 10, 58,  6, 54,  9, 57,  5, 53 },
+      { 42, 26, 38, 22, 41, 25, 37, 21 }
+   };
+
+   for (int y = 0; y < FBH; y++) {
+      uint8_t *lfb = fb+y*FBW;
+      for (int x = 0; x != FBW; x++) {
+         int p = plasma_lookup(x, y);
+         rgb_t c = colors_lookup(p);
+         int8_t out = 0xc; // alpha, will be shifted up towards MSB 2 times
+         int32_t co = coeff[y&7][x&7];
+
+         // MLA Rd, Rn, Rm, Ra ; Rd = Ra + Rn * Rm
+#define MLA(rd,rn,rm) __asm__("mla %0, %1, %2, %2" : "=r"(rd) : "r"(rn), "r"(rm) : )
+
+         int32_t o;
+         MLA(o,co,c.r);
+         USAT(o,3,12);
+         out |= o;
+
+         MLA(o,co,c.g);
+         USAT(o,3,12);
+         out <<= 2;
+         out |= o;
+
+         MLA(o,co,c.b);
+         USAT(o,3,12);
+         out <<= 2;
+         out |= o;
+
+         lfb[x] = out;
+      }
+   }
+#endif
 }
 
 static void draw(void) {
    START_TIME_MEASURE();
    fbPlasma();
+#if 0
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+   fbPlasma();
+#endif
    END_TIME_MEASURE("drawing");
 }
 
